@@ -3,27 +3,13 @@ require 'pry'
 # Savon for SOAP
 require 'savon'
 
-# ActiveSupport::Inflector to use +camelize+
-require 'active_support/inflector'
 class CardVaultService
+  # You may want to move this to application settings
+  WSDL_URL = 'https://services.pwsdemo.com/WSDL/PwsDemo_creditcardmanagementservice.xml'
 
-  # +initialize+ method takes params hash:
-  #   {
-  #     wsdl_url: 'http://service.url.com?wdsl',
-  #     merchant_code: 'merchant_code',
-  #     location_code: 'location_code',
-  #     customer_code: 'default_customer_code',
-  #     client_code: 'your_client_code',
-  #     user_name: 'username',
-  #     password: 'pass1234'
-  #   }
-
-  def initialize(params)
-    params.each {|k, v| instance_variable_set "@#{k}", v}
-  end
-
-  # +get_stored_credit_card+ method takes a token:
-  # "C100000000000000"
+  # +get_stored_credit_card+ method takes token:
+  # 'C100000000000000' and
+  # ClientCredentials, CustomerIdentifier structs
   #
   # in case of successful API request returns:
   # {
@@ -42,19 +28,19 @@ class CardVaultService
   # in case of failed API request returns:
   # {error: "Reason of failure here"}
 
-  def get_stored_credit_card(token)
-    @token = token
-    get_card_response client.call(:get_stored_credit_card, message: request_message(__callee__)).hash
+  def get_stored_credit_card(token, client_credentials, customer_identifier)
+    message = {
+      'clientCredentials' => client_credentials.to_h,
+      'getStoredCreditCardParams' => {
+        customer_identifier: customer_identifier.to_h,
+        retrieve_card_number: true,
+        token: token
+      }
+    }
+    get_card_response client.call(:get_stored_credit_card, message: message).hash
   end
 
-  # +add_stored_credit_card+ method takes params hash:
-  # {
-  #     card_account_number: '4111111111111111',
-  #     expiration_month: 10,
-  #     expiration_year: 2015,
-  #     name_on_card: 'CARDHOLDER NAME',
-  #     postal_code: 44311
-  # }
+  # +add_stored_credit_card+ method takes CreditCard, ClientCredentials, CustomerIdentifier structs
   #
   # in case of successful API request returns:
   # {token: "C100000000000000"}
@@ -62,49 +48,21 @@ class CardVaultService
   # in case of failed API request returns:
   # {error: "Reason of failure here"}
 
-  def add_stored_credit_card(params)
-    process_params(params)
-    add_card_response client.call(:add_stored_credit_card, message: request_message(:add_stored_card)).hash
+  def add_stored_credit_card(credit_card, client_credentials, customer_identifier)
+    message = {
+      'clientCredentials' => client_credentials.to_h,
+      'addStoredCardParams' => {
+        credit_card: credit_card.to_h,
+        customer_identifier: customer_identifier.to_h
+      }
+    }
+    add_card_response client.call(:add_stored_credit_card, message: message).hash
   end
 
   protected
 
   def client
     Savon.client(wsdl: WSDL_URL, convert_request_keys_to: :camelcase)
-  end
-
-  def request_message(method_name)
-    method_name = method_name.to_s << "_params"
-    {'clientCredentials' => client_credentials, method_name.camelize(:lower) => self.send(method_name) }
-  end
-
-  def get_stored_credit_card_params
-    {customer_identifier: customer_identifier, retrieve_card_number: true, token: @token}
-  end
-
-  def add_stored_card_params
-    {
-        credit_card: {
-            billing_address: {postal_code: @postal_code},
-            card_account_number: @card_account_number,
-            expiration_month: @expiration_month,
-            expiration_year: @expiration_year,
-            name_on_card: @name_on_card
-        },
-        customer_identifier: customer_identifier
-    }
-  end
-
-  def client_credentials
-    {client_code: @client_code, password: @password, user_name: @user_name}
-  end
-
-  def customer_identifier
-    {customer_code: @customer_code, location_code: @location_code, merchant_code: @merchant_code}
-  end
-
-  def process_params(params)
-    params.each {|k, v| instance_variable_set "@#{k}", v}
   end
 
   def get_card_response(response)
@@ -124,8 +82,49 @@ class CardVaultService
   end
 end
 
+# ClientCredintials struct keeps user specific credentials for PWS
+# It contains:
+# client_code #=> 'ClientCode'
+# user_name => 'username'
+# password => 'password'
+ClientCredentials = Struct.new(:client_code, :user_name, :password) do
+  def to_h
+    {client_code: client_code, password: password, user_name: user_name}
+  end
+end
 
-WSDL_URL = 'https://services.pwsdemo.com/WSDL/PwsDemo_creditcardmanagementservice.xml'
+# CustomerIdentifier struct keeps values like merchant, location and customer codes required in PWS service:
+# It contains:
+# merchant_code #=> 'merchantcode'
+# location_code #=> 'locationcode'
+# customer_code #=> 'customercode'
+CustomerIdentifier = Struct.new(:merchant_code, :location_code, :customer_code) do
+  def to_h
+    {customer_code: customer_code, location_code: location_code, merchant_code: merchant_code}
+  end
+end
+
+# CreditCard struct keeps credit card data required for adding new one to PWS service:
+# It contains:
+# card_account_number #=> '0000000000001234'
+# expiration_month #=> 00
+# expiration_year #=> 0000
+# name_on_card #=> 'CARDHOLDER NAME'
+# postal_code #=> 11111
+CreditCard = Struct.new(:card_account_number, :expiration_month, :expiration_year, :name_on_card, :postal_code) do
+  def to_h
+    {
+      billing_address: {postal_code: postal_code},
+      card_account_number: card_account_number,
+      expiration_month: expiration_month,
+      expiration_year: expiration_year,
+      name_on_card: name_on_card
+    }
+  end
+end
+
+# Service showcase:
+
 MERCHANT = 'YachtSpot'
 LOCATION = 'YachtSpot'
 CUSTOMER = 'DEFAULT'
@@ -134,25 +133,18 @@ CLIENT_CODE = 'YachtSpot'
 USER_NAME = 'Linxtrans'
 PASSWORD = '4CgxqszzS!'
 
-service_params = {
-    wsdl_url: WSDL_URL,
-    merchant_code: MERCHANT,
-    location_code: LOCATION,
-    customer_code: CUSTOMER,
-    client_code: CLIENT_CODE,
-    user_name: USER_NAME,
-    password: PASSWORD
-}
+c_c = ClientCredentials.new(CLIENT_CODE, USER_NAME, PASSWORD)
+c_i = CustomerIdentifier.new(MERCHANT, LOCATION, CUSTOMER)
+token = "C100000000583695"
 
-p CardVaultService.new(service_params).get_stored_credit_card('C100000000582802')
+p CardVaultService.new.get_stored_credit_card(token, c_c, c_i)
 
-add_card_params = {
-    card_account_number: '4111111111111111',
-    expiration_month: 10,
-    expiration_year: 2015,
-    name_on_card: 'CHOLDER NAME',
-    postal_code: 44311
-}
+cr_c = CreditCard.new(
+    '4111111111111111',
+    10,
+    2015,
+    'CHOLDER NAME',
+    44311
+)
 
-p CardVaultService.new(service_params).add_stored_credit_card(add_card_params)
-
+p CardVaultService.new.add_stored_credit_card(cr_c, c_c, c_i)
