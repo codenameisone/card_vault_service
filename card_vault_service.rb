@@ -155,38 +155,12 @@ CreditCard = Struct.new(:card_account_number, :expiration_month, :expiration_yea
 end
 
 # Service showcase:
+# These should be replaced with real values.
 
-MERCHANT = 'YachtSpot'
-LOCATION = 'YachtSpot'
+MERCHANT = 'merchant'
+LOCATION = 'somewhere'
 CUSTOMER = 'DEFAULT'
 
-CLIENT_CODE = 'YachtSpot'
-USER_NAME = 'Linxtrans'
-PASSWORD = '4CgxqszzS!'
-
-# c_c = ClientCredentials.new(CLIENT_CODE, USER_NAME, PASSWORD)
-# c_i = CustomerIdentifier.new(MERCHANT, LOCATION, CUSTOMER)
-# token = 'C100000000585750'
-#
-# p CardVaultService.new.get_stored_credit_card(token, c_c, c_i)
-#
-# cr_c = CreditCard.new(
-#     '4111111111111111',
-#     10,
-#     2015,
-#     'CHOLDER NAME',
-#     44311
-# )
-#
-# token = CardVaultService.new.add_stored_credit_card(cr_c, c_c, c_i)[:token]
-#
-# cr_c = CreditCard.new(
-#     '4111111111111111',
-#     12,
-#     2015,
-#     'CHOLDER NAME',
-#     44311,
-#     token
-# )
-#
-# p CardVaultService.new.update_stored_credit_card(cr_c, c_c, c_i)
+CLIENT_CODE = 'client_code'
+USER_NAME = 'user_name'
+PASSWORD = 'password'
